@@ -1,21 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
-try:
-    __version__ = __import__('pkg_resources').get_distribution('clamd').version
-except:
-    __version__ = ''
-
-# $Source$
-
-
-import socket
-import sys
-import struct
+import base64
 import contextlib
 import re
-import base64
+import socket
+import struct
+import sys
+from abc import ABC, abstractmethod
+from typing import Optional
+
+if sys.version_info >= (3, 8):
+    from importlib.metadata import version, PackageNotFoundError
+else:
+    from pkg_resources import get_distribution, DistributionNotFound as PackageNotFoundError
+    version = lambda x: get_distribution(x).version
+
+try:
+    __version__ = version('clamd')
+except PackageNotFoundError:
+    pass
 
 scan_response = re.compile(r"^(?P<path>.*): ((?P<virus>.+) )?(?P<status>(FOUND|OK|ERROR))$")
 EICAR = base64.b64decode(
@@ -40,52 +43,24 @@ class ConnectionError(ClamdError):
     """Class for errors communication with clamd"""
 
 
-class ClamdNetworkSocket(object):
-    """
-    Class for using clamd with a network socket
-    """
-    def __init__(self, host='127.0.0.1', port=3310, timeout=None):
-        """
-        class initialisation
+class BaseClamdSocket(ABC):
+    clamd_socket: socket.socket
 
-        host (string) : hostname or ip address
-        port (int) : TCP port
-        timeout (float or None) : socket timeout
-        """
-
-        self.host = host
-        self.port = port
+    def __init__(self, timeout: Optional[float] = None):
         self.timeout = timeout
 
+    @abstractmethod
     def _init_socket(self):
         """
         internal use only
         """
-        try:
-            self.clamd_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.clamd_socket.connect((self.host, self.port))
-            self.clamd_socket.settimeout(self.timeout)
 
-        except socket.error:
-            e = sys.exc_info()[1]
-            raise ConnectionError(self._error_message(e))
-
+    @abstractmethod
     def _error_message(self, exception):
-        # args for socket.error can either be (errno, "message")
-        # or just "message"
-        if len(exception.args) == 1:
-            return "Error connecting to {host}:{port}. {msg}.".format(
-                host=self.host,
-                port=self.port,
-                msg=exception.args[0]
-            )
-        else:
-            return "Error {erno} connecting {host}:{port}. {msg}.".format(
-                erno=exception.args[0],
-                host=self.host,
-                port=self.port,
-                msg=exception.args[1]
-            )
+        """
+        args for socket.error can either be (errno, "message")
+        or just "message"
+        """
 
     def ping(self):
         return self._basic_command("PING")
@@ -262,7 +237,8 @@ class ClamdNetworkSocket(object):
         self.clamd_socket.close()
         return
 
-    def _parse_response(self, msg):
+    @staticmethod
+    def _parse_response(msg):
         """
         parses responses for SCAN, CONTSCAN, MULTISCAN and STREAM commands.
         """
@@ -272,11 +248,56 @@ class ClamdNetworkSocket(object):
             raise ResponseError(msg.rsplit("ERROR", 1)[0])
 
 
-class ClamdUnixSocket(ClamdNetworkSocket):
+class ClamdNetworkSocket(BaseClamdSocket):
+    """
+    Class for using clamd with a network socket
+    """
+
+    def __init__(self, host: str = '127.0.0.1', port: int = 3310, timeout: Optional[float] = None):
+        """
+        class initialisation
+
+        host (string) : hostname or ip address
+        port (int) : TCP port
+        timeout (float or None) : socket timeout
+        """
+
+        super().__init__(timeout)
+        self.host = host
+        self.port = port
+
+    def _init_socket(self):
+        try:
+            self.clamd_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.clamd_socket.connect((self.host, self.port))
+            self.clamd_socket.settimeout(self.timeout)
+
+        except socket.error:
+            e = sys.exc_info()[1]
+            raise ConnectionError(self._error_message(e))
+
+    def _error_message(self, exception):
+        if len(exception.args) == 1:
+            return "Error connecting to {host}:{port}. {msg}.".format(
+                host=self.host,
+                port=self.port,
+                msg=exception.args[0]
+            )
+        else:
+            return "Error {erno} connecting {host}:{port}. {msg}.".format(
+                erno=exception.args[0],
+                host=self.host,
+                port=self.port,
+                msg=exception.args[1]
+            )
+
+
+class ClamdUnixSocket(BaseClamdSocket):
     """
     Class for using clamd with an unix socket
     """
-    def __init__(self, path="/var/run/clamav/clamd.ctl", timeout=None):
+
+    def __init__(self, path: str = "/var/run/clamav/clamd.ctl", timeout: Optional[float] = None):
         """
         class initialisation
 
@@ -284,8 +305,8 @@ class ClamdUnixSocket(ClamdNetworkSocket):
         timeout (float or None) : socket timeout
         """
 
+        super().__init__(timeout)
         self.unix_socket = path
-        self.timeout = timeout
 
     def _init_socket(self):
         """
@@ -300,8 +321,6 @@ class ClamdUnixSocket(ClamdNetworkSocket):
             raise ConnectionError(self._error_message(e))
 
     def _error_message(self, exception):
-        # args for socket.error can either be (errno, "message")
-        # or just "message"
         if len(exception.args) == 1:
             return "Error connecting to {path}. {msg}.".format(
                 path=self.unix_socket,

@@ -1,0 +1,128 @@
+name: python-clamd
+
+x-common-python-clamd-service: &python-clamd-common
+  pull_policy: build
+
+  volumes:
+    - tmp:/tmp
+
+  environment: &python-clamd-environment
+    TEST_CLAMD_PORT: 3310
+    TEST_CLAMD_HOST: clamd
+    TEST_CLAMD_SOCKET: /tmp/clamd.sock
+
+  depends_on:
+    clamd:
+      condition: service_healthy
+
+
+services:
+  clamd:
+    image: clamav/clamav:1.5.2-33
+    restart: unless-stopped
+
+    configs:
+      - source: freshclam.conf
+        target: /var/log/clamav/freshclam.log
+        mode: 0644
+
+      - source: clamd.conf
+        target: /etc/clamav/clamd.conf
+        mode: 0644
+
+    volumes:
+      - tmp:/tmp
+      - clam_db:/var/lib/clamav
+
+  python-clamd-base:
+    <<: *python-clamd-common
+    image: ${COMPOSE_PROJECT_NAME}-python-clamd-base:${PYTHON_VERSION:-3.6}
+    build:
+      dockerfile_inline: |
+        FROM python:${PYTHON_VERSION:-3.6}-slim AS base
+        
+        ENV CUSER="${USER:-aloha}"
+        ENV CGROUP="${GROUP:-$$CUSER}"
+        ENV CUID="${CUID:-1000}"
+        ENV CGID="${CGID:-$$CUID}"
+        
+        ENV CHOME="/home/$${CUSER}"
+        ENV PATH="$${CHOME}/.local/bin:$${PATH}"
+        
+        RUN groupadd -g "$${CGID}" "$${CGROUP}" && \
+            useradd -u "$${CUID}" -g "$${CGID}" -m -s /bin/bash -d "$${CHOME}" "$${CUSER}"
+        
+        USER "$${CUID}:$${CGID}"
+        WORKDIR "$${CHOME}/python/clamd"
+        
+        RUN --mount=type=cache,target=$${CHOME}/.cache/pip \
+            --mount=type=bind,source=requirements.txt,target=/tmp/requirements.txt \
+            pip install --upgrade pip && \
+            pip install --requirement /tmp/requirements.txt
+
+  python-clamd-dev:
+    <<: *python-clamd-common
+    image: ${COMPOSE_PROJECT_NAME}-python-clamd-dev:${PYTHON_VERSION:-3.6}
+    environment:
+      <<: *python-clamd-environment
+      PYTHONPATH: /home/${USER:-aloha}/python/clamd/src
+    volumes:
+      - ./:/home/${USER:-aloha}/python/clamd
+      - tmp:/tmp
+    build:
+      additional_contexts:
+        base: service:python-clamd-base
+      dockerfile_inline: |
+        FROM base AS dev
+        RUN --mount=type=cache,target=$${CHOME}/.cache/pip \
+            --mount=type=bind,source=requirements-dev.txt,target=/tmp/requirements-dev.txt \
+            --mount=type=bind,source=requirements-test.txt,target=/tmp/requirements-test.txt \
+            pip install --requirement /tmp/requirements-dev.txt \
+                        --requirement /tmp/requirements-test.txt 
+
+        COPY --chown="$${CUID}:$${CGID}" . .
+        RUN pip install --no-cache-dir -e .
+        CMD ["pytest", "-sv", "--cov=clamd", "--cov-report=term", "--cov-report=html"]
+
+  python-clamd-test:
+    <<: *python-clamd-common
+    image: ${COMPOSE_PROJECT_NAME}-python-clamd-test:${PYTHON_VERSION:-3.6}
+    build:
+      additional_contexts:
+        base: service:python-clamd-base
+      dockerfile_inline: |
+        FROM base AS test
+        RUN --mount=type=cache,target=$${CHOME}/.cache/pip \
+            --mount=type=bind,source=requirements-test.txt,target=/tmp/requirements-test.txt \
+            pip install --requirement /tmp/requirements-test.txt
+        
+        COPY --chown="$${CUID}:$${CGID}" . .
+        RUN pip install --no-cache-dir . && rm -r src
+        CMD ["pytest", "-sv", "--tb=long"]
+
+
+configs:
+  freshclam.conf:
+    content: |
+      UpdateLogFile /var/log/clamav/freshclam.log
+      PidFile /tmp/freshclam.pid
+      DatabaseOwner clamav
+      DatabaseMirror database.clamav.net
+      ScriptedUpdates yes
+      NotifyClamd /etc/clamav/clamd.conf
+
+  clamd.conf:
+    content: |
+      LogFile /var/log/clamav/clamd.log
+      LogTime yes
+      PidFile /tmp/clamd.pid
+      LocalSocket /tmp/clamd.sock
+      TCPSocket 3310
+      StreamMaxLength 100M
+      User clamav
+      ExcludePath /quarantine
+
+
+volumes:
+  tmp:
+  clam_db:
