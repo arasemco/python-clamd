@@ -52,5 +52,5 @@ jobs:
 
       # --- Gitea-only step ---
       - name: Run tests in Docker (Gitea)
-        if: ${{ runner.environment == 'github-hosted' }}
+        if: ${{ runner.environment != 'github-hosted' }}
         run: PYTHON_VERSION=${{ matrix.python }} docker compose run --rm --build python-clamd-test
