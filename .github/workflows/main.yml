@@ -27,12 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # --- GitHub-only steps ---
       - name: Set up Docker Compose
-        if: ${{ runner.environment == 'github-hosted' }}
         uses: docker/setup-compose-action@v2
-        with:
-          version: latest
 
       - name: Run tests in Docker
         run: PYTHON_VERSION=${{ matrix.python }} docker compose run --rm --build python-clamd-test
