@@ -15,6 +15,12 @@ x-common-python-clamd-service: &python-clamd-common
     clamd:
       condition: service_healthy
 
+x-common-build-args: &python-clamd-build-args
+  CUSER: ${USER:-aloha}
+  CGROUP: ${GROUP:-aloha}
+  CUID: ${UID:-1000}
+  CGID: ${GID:-1000}
+
 
 services:
   clamd:
@@ -38,23 +44,32 @@ services:
     <<: *python-clamd-common
     image: ${COMPOSE_PROJECT_NAME}-python-clamd-base:${PYTHON_VERSION:-3.6}
     build:
+      args:
+        <<: *python-clamd-build-args
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.6}
       dockerfile_inline: |
-        FROM python:${PYTHON_VERSION:-3.6}-slim AS base
-        
-        ENV CUSER="${USER:-aloha}"
-        ENV CGROUP="${GROUP:-$$CUSER}"
-        ENV CUID="${CUID:-1000}"
-        ENV CGID="${CGID:-$$CUID}"
-        
+        ARG PYTHON_VERSION=3.6
+        FROM python:$${PYTHON_VERSION}-slim AS base
+
+        ARG CUSER=aloha
+        ARG CGROUP=aloha
+        ARG CUID=1000
+        ARG CGID=1000
+
+        ENV CUSER="$${CUSER}"
+        ENV CGROUP="$${CGROUP}"
+        ENV CUID="$${CUID}"
+        ENV CGID="$${CGID}"
+
         ENV CHOME="/home/$${CUSER}"
         ENV PATH="$${CHOME}/.local/bin:$${PATH}"
-        
-        RUN groupadd -g "$${CGID}" "$${CGROUP}" && \
-            useradd -u "$${CUID}" -g "$${CGID}" -m -s /bin/bash -d "$${CHOME}" "$${CUSER}"
-        
+
+        RUN (getent group "$${CGID}" || groupadd -g "$${CGID}" "$${CGROUP}") && \
+            (getent passwd "$${CUID}" || useradd -u "$${CUID}" -g "$${CGID}" -m -s /bin/bash -d "$${CHOME}" "$${CUSER}")
+
         USER "$${CUID}:$${CGID}"
         WORKDIR "$${CHOME}/python/clamd"
-        
+
         RUN --mount=type=cache,target=$${CHOME}/.cache/pip \
             --mount=type=bind,source=requirements.txt,target=/tmp/requirements.txt \
             pip install --upgrade pip && \
@@ -74,11 +89,12 @@ services:
         base: service:python-clamd-base
       dockerfile_inline: |
         FROM base AS dev
+
         RUN --mount=type=cache,target=$${CHOME}/.cache/pip \
             --mount=type=bind,source=requirements-dev.txt,target=/tmp/requirements-dev.txt \
             --mount=type=bind,source=requirements-test.txt,target=/tmp/requirements-test.txt \
             pip install --requirement /tmp/requirements-dev.txt \
-                        --requirement /tmp/requirements-test.txt 
+                        --requirement /tmp/requirements-test.txt
 
         COPY --chown="$${CUID}:$${CGID}" . .
         RUN pip install --no-cache-dir -e .
@@ -92,10 +108,11 @@ services:
         base: service:python-clamd-base
       dockerfile_inline: |
         FROM base AS test
+
         RUN --mount=type=cache,target=$${CHOME}/.cache/pip \
             --mount=type=bind,source=requirements-test.txt,target=/tmp/requirements-test.txt \
             pip install --requirement /tmp/requirements-test.txt
-        
+
         COPY --chown="$${CUID}:$${CGID}" . .
         RUN pip install --no-cache-dir . && rm -r src
         CMD ["pytest", "-sv", "--tb=long"]
