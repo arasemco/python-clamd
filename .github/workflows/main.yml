@@ -24,33 +24,69 @@ jobs:
           - "3.13"
           - "3.14"
 
+    env:
+      TEST_CLAMD_HOST: 127.0.0.1
+      TEST_CLAMD_PORT: 3310
+      TEST_CLAMD_SOCKET: /var/run/clamav/clamd.ctl
+
     steps:
       - uses: actions/checkout@v4
 
-      # --- GitHub-only steps ---
-      - name: Set up latest Docker
-        if: ${{ vars.CI_PLATFORM == 'github' }}
-        uses: docker/setup-docker-action@v5
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
         with:
-          version: latest
+          python-version: ${{ matrix.python }}
 
-      - name: Set up Docker Compose
-        if: ${{ vars.CI_PLATFORM == 'github' }}
-        uses: docker/setup-compose-action@v2
-        with:
-          version: latest
-
-      - name: Set up Docker Buildx
-        if: ${{ vars.CI_PLATFORM == 'github' }}
-        uses: docker/setup-buildx-action@v4
-
-      - name: Run tests in Docker (GitHub)
-        if: ${{ vars.CI_PLATFORM == 'github' }}
+      - name: Install ClamAV daemon
         run: |
-          PYTHON_VERSION=${{ matrix.python }} docker compose build python-clamd-base python-clamd-test
-          PYTHON_VERSION=${{ matrix.python }} docker compose run --rm python-clamd-test
+          sudo apt-get update
+          sudo apt-get install -y clamav-daemon clamav-freshclam
 
-      # --- Gitea-only step ---
-      - name: Run tests in Docker (Gitea)
-        if: ${{ vars.CI_PLATFORM != 'github' }}
-        run: PYTHON_VERSION=${{ matrix.python }} docker compose run --rm --build python-clamd-test
+      - name: Configure clamd for TCP access
+        run: |
+          echo "TCPSocket 3310" | sudo tee -a /etc/clamav/clamd.conf
+          echo "TCPAddr 127.0.0.1" | sudo tee -a /etc/clamav/clamd.conf
+
+      - name: Update virus definitions
+        run: sudo freshclam || true
+
+      - name: Start clamd
+        run: sudo systemctl start clamav-daemon
+
+      - name: Allow the runner user to access the clamd unix socket
+        run: |
+          for i in $(seq 1 30); do
+            if [ -S /var/run/clamav/clamd.ctl ]; then
+              sudo chmod 666 /var/run/clamav/clamd.ctl
+              echo "socket permissions relaxed"
+              exit 0
+            fi
+            echo "waiting for clamd socket... ($i)"
+            sleep 1
+          done
+          echo "clamd socket never appeared" >&2
+          sudo journalctl -u clamav-daemon --no-pager || true
+          exit 1
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --requirement requirements-test.txt
+          pip install --no-cache-dir .
+
+      - name: Wait for clamd to accept connections
+        run: |
+          for i in $(seq 1 30); do
+            if python -c "import clamd; print(clamd.ClamdNetworkSocket().ping())" 2>/dev/null | grep -q PONG; then
+              echo "clamd is up"
+              exit 0
+            fi
+            echo "waiting for clamd... ($i)"
+            sleep 2
+          done
+          echo "clamd did not become ready in time" >&2
+          sudo journalctl -u clamav-daemon --no-pager || true
+          exit 1
+
+      - name: Run tests
+        run: pytest -sv --tb=long
