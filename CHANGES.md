@@ -4,7 +4,14 @@ Changes
 1.0.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Introduced `BaseClamdSocket`, a common abstract base class for `ClamdNetworkSocket` and `ClamdUnixSocket`, replacing the previous inheritance of `ClamdUnixSocket` from `ClamdNetworkSocket`.
+- Added type hints throughout the public API.
+- Resolved `__version__` via `importlib.metadata` on Python 3.8+, falling back to `pkg_resources` on older versions.
+- Converted documentation from reStructuredText to Markdown (`README.rst` -> `README.md`, `CHANGES.rst` -> `CHANGES.md`).
+- Replaced Travis CI and tox with GitHub Actions and pytest, running against a live ClamAV daemon via Docker Compose across a matrix of Python versions (3.6-3.14).
+- Moved the test suite from `src/tests` to `test/`, with fixtures shared through `test/conftest.py`.
+- Removed `ez_setup.py`, `setup.cfg`, `tox.ini`, and `MANIFEST.in`; rewrote `setup.py` to read dependencies and metadata from the new project layout.
+- Dropped support for Python 2 (removed `from __future__ import unicode_literals`).
 
 
 1.0.2 (2014-08-21)

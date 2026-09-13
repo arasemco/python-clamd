@@ -8,108 +8,110 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/arasemco/python-clamd)
 ![GitHub last commit](https://img.shields.io/github/last-commit/arasemco/python-clamd?color=red)
 [![Test workflow](https://github.com/arasemco/python-clamd/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/arasemco/python-clamd/actions/workflows/main.yml)
+[![PyPI Version](https://img.shields.io/pypi/v/clamd.svg)](https://pypi.org/project/clamd/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/clamd.svg)](https://pypi.org/project/clamd/)
 
-clamd
-=====
-
-.. image:: https://github.com/arasemco/python-clamd/workflows/Test/badge.svg?branch=master
-   :alt: GitHub Actions build status
-   :target: https://github.com/arasemco/python-clamd/actions
-
-.. image:: https://img.shields.io/pypi/v/clamd.svg
-   :alt: PyPI Version
-   :target: https://pypi.org/project/clamd/
-
-.. image:: https://img.shields.io/pypi/pyversions/clamd.svg
-   :alt: Python Versions
-   :target: https://pypi.org/project/clamd/
-
-About
------
+## About
 
 `clamd` is a portable Python module to use the ClamAV anti-virus engine on
 Windows, Linux, macOS and other platforms. It requires a running instance of
 the `clamd` daemon.
 
-This is a fork from https://github.com/graingert/python-clamd
+This is a fork of https://github.com/graingert/python-clamd
 
 Original credits:
 - pyClamd v0.2.0 by Philippe Lagadec (http://www.decalage.info/en/python/pyclamd)
 - pyClamd v0.1.1 by Alexandre Norman (http://xael.org/norman/python/pyclamd/)
 
-Installation
-------------
+## Installation
 
-Install from PyPI::
+Install from PyPI:
 
-    pip install clamd
+```bash
+pip install clamd
+```
 
-Or install from source::
+Or install from source:
 
-    git clone https://github.com/arasemco/python-clamd.git
-    cd python-clamd
-    pip install -e .
+```bash
+git clone https://github.com/arasemco/python-clamd.git
+cd python-clamd
+pip install -e .
+```
 
-Requirements
-------------
+## Requirements
 
-- Python 3.9 or higher
+- Python 3.6 or higher
 - Running ClamAV daemon (clamd)
 
-Install ClamAV daemon on Ubuntu::
+Install ClamAV daemon on Ubuntu:
 
-    sudo apt-get install clamav-daemon clamav-freshclam
-    sudo freshclam
-    sudo service clamav-daemon start
+```bash
+sudo apt-get install clamav-daemon clamav-freshclam
+sudo freshclam
+sudo service clamav-daemon start
+```
 
-Usage
------
+## Usage
 
-**Unix socket connection**::
+**Unix socket connection**:
 
-    >>> import clamd
-    >>> cd = clamd.ClamdUnixSocket()
-    >>> cd.ping()
-    'PONG'
-    >>> cd.version()
-    'ClamAV ...'
-    >>> cd.reload()
-    'RELOADING'
+```python
+>>> import clamd
+>>> cd = clamd.ClamdUnixSocket()
+>>> cd.ping()
+'PONG'
+>>> cd.version()
+'ClamAV ...'
+>>> cd.reload()
+'RELOADING'
+```
 
-**Network socket connection**::
+**Network socket connection**:
 
-    >>> cd = clamd.ClamdNetworkSocket(host='127.0.0.1', port=3310)
+```python
+>>> cd = clamd.ClamdNetworkSocket(host='127.0.0.1', port=3310)
+```
 
-**Scan a file**::
+**Scan a file**:
 
-    >>> with open('/tmp/EICAR', 'wb') as f:
-    ...     f.write(clamd.EICAR)
-    >>> cd.scan('/tmp/EICAR')
-    {'/tmp/EICAR': ('FOUND', 'Eicar-Test-Signature')}
+```python
+>>> with open('/tmp/EICAR', 'wb') as f:
+...     f.write(clamd.EICAR)
+>>> cd.scan('/tmp/EICAR')
+{'/tmp/EICAR': ('FOUND', 'Eicar-Test-Signature')}
+```
 
-**Scan a stream (buffer)**::
+**Scan a stream (buffer)**:
 
-    >>> from io import BytesIO
-    >>> cd.instream(BytesIO(clamd.EICAR))
-    {'stream': ('FOUND', 'Eicar-Test-Signature')}
+```python
+>>> from io import BytesIO
+>>> cd.instream(BytesIO(clamd.EICAR))
+{'stream': ('FOUND', 'Eicar-Test-Signature')}
+```
 
-**Scan a directory recursively**::
+**Scan a directory recursively**:
 
-    >>> results = cd.multiscan('/path/to/directory')
-    >>> for path, (status, virus) in results.items():
-    ...     if status == 'FOUND':
-    ...         print(f'Virus found: {virus} in {path}')
+```python
+>>> results = cd.multiscan('/path/to/directory')
+>>> for path, (status, virus) in results.items():
+...     if status == 'FOUND':
+...         print(f'Virus found: {virus} in {path}')
+```
 
-**Get clamd statistics**::
+**Get clamd statistics**:
 
-    >>> print(cd.stats())
+```python
+>>> print(cd.stats())
+```
 
-API Reference
--------------
+## API Reference
 
 Classes:
 - `ClamdUnixSocket(path='/var/run/clamav/clamd.ctl', timeout=None)`
 - `ClamdNetworkSocket(host='127.0.0.1', port=3310, timeout=None)`
+
+Both classes derive from the common `BaseClamdSocket` abstract base class.
 
 Methods:
 - `ping()` - Check if clamd is responding
@@ -127,44 +129,46 @@ Exceptions:
 - `ResponseError` - Invalid response from clamd
 - `BufferTooLongError` - Stream exceeds max length
 
-Testing
--------
+## Testing
 
-Run tests with tox::
+The test suite runs against a live `clamd` daemon and is orchestrated with Docker Compose.
 
-    tox
+Run the full test matrix:
 
-Run specific Python version::
+```bash
+docker compose run --rm --build python-clamd-test
+```
 
-    tox -e py312
+Run against a specific Python version:
 
-Run single test::
+```bash
+PYTHON_VERSION=3.12 docker compose run --rm --build python-clamd-test
+```
 
-    tox -e py312 -- src/tests/test_api.py::TestUnixSocket::test_ping
+Run a single test:
 
-Development
------------
+```bash
+PYTHON_VERSION=3.12 docker compose run --rm --build python-clamd-test \
+    pytest -sv test/test_clamd/test_api.py::TestClamdUnixSocket::test_ping
+```
 
-Install development dependencies::
+## Development
 
-    pip install -e .[dev]
+Start a development container with the source mounted and dependencies installed:
 
-Run linting::
+```bash
+PYTHON_VERSION=3.12 docker compose run --rm --build python-clamd-dev
+```
 
-    tox -e lint
-
-License
--------
+## License
 
 `clamd` is released as open-source software under the **GNU Lesser General Public License v2.1 or later** (LGPL-2.1-or-later).
 
-Contributing
-------------
+## Contributing
 
 Issues and pull requests are welcome at:
 https://github.com/arasemco/python-clamd
 
-Changelog
----------
+## Changelog
 
-See `CHANGES.rst` for version history.
+See [CHANGES.md](CHANGES.md) for version history.
