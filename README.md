@@ -7,6 +7,7 @@
 ![GitHub language count](https://img.shields.io/github/languages/count/arasemco/python-clamd)
 ![GitHub top language](https://img.shields.io/github/languages/top/arasemco/python-clamd)
 ![GitHub last commit](https://img.shields.io/github/last-commit/arasemco/python-clamd?color=red)
+[![Test workflow](https://github.com/arasemco/python-clamd/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/arasemco/python-clamd/actions/workflows/main.yml)
 
 clamd
 =====

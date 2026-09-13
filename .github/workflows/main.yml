@@ -28,4 +28,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run tests in Docker
-        run: PYTHON_VERSION=${{ matrix.python }} docker compose run --rm --build python-clamd-test
+        run: |
+          PYTHON_VERSION=${{ matrix.python }} docker compose build python-clamd-base
+          PYTHON_VERSION=${{ matrix.python }} docker compose run --rm --build python-clamd-test
