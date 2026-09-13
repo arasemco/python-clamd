@@ -16,10 +16,10 @@ x-common-python-clamd-service: &python-clamd-common
       condition: service_healthy
 
 x-common-build-args: &python-clamd-build-args
-  CUSER: ${USER:-aloha}
-  CGROUP: ${GROUP:-aloha}
-  CUID: ${UID:-1000}
-  CGID: ${GID:-1000}
+  CUSER: clamav
+  CGROUP: clamav
+  CUID: 1000
+  CGID: 1000
 
 
 services:
