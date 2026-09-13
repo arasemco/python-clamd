@@ -29,5 +29,5 @@ jobs:
 
       - name: Run tests in Docker
         run: |
-          PYTHON_VERSION=${{ matrix.python }} docker compose build python-clamd-base
-          PYTHON_VERSION=${{ matrix.python }} docker compose run --rm --build python-clamd-test
+          PYTHON_VERSION=${{ matrix.python }} docker compose build python-clamd-base python-clamd-test
+          PYTHON_VERSION=${{ matrix.python }} docker compose run --rm python-clamd-test
