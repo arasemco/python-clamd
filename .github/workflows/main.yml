@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Compose
-        uses: docker/setup-compose-action@v2
+        uses: docker/setup-compose-action@v2.3.0
 
       - name: Run tests in Docker
         run: PYTHON_VERSION=${{ matrix.python }} docker compose run --rm --build python-clamd-test
