@@ -27,6 +27,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up latest Docker
+        uses: docker/setup-docker-action@v5
+        with:
+          version: latest
+
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v2
+        with:
+          version: latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Run tests in Docker
         run: |
           PYTHON_VERSION=${{ matrix.python }} docker compose build python-clamd-base python-clamd-test
